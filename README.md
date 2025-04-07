@@ -1,89 +1,137 @@
-# hubspot-integration
-"API de integração com HubSpot"
+ HubSpot Integration API
 
-HubSpot Integration API
+API Spring Boot para integração completa com o HubSpot, incluindo autenticação OAuth2, gestão de contatos e webhooks.
 
-Conta de Desenvolvedor: VianaDev Aplicação: HubSpot Integration API
+  Pré-requisitos
 
-Passos realizados na conta VianaDev: Criação do App
+- Java 17+
+- Maven 3.8+
+- [Conta de desenvolvedor no HubSpot (VianaDev)](https://developers.hubspot.com/)
+- Credenciais OAuth (Client ID e Secret)
 
-Criação do App Acessado o Portal de Desenvolvedores → "Create app"
+Configuração Rápida
+Configure as credenciais** em `src/main/resources/application-dev.properties`:
+properties
+hubspot.client.id=seu-client-id-aqui
+hubspot.client.secret=seu-client-secret-aqui
+hubspot.redirect.uri=http://localhost:8080/api/auth/callback
+hubspot.webhook.secret=seu-secret-aqui
 
-Nome do app: HubSpot Integration API
+Execute a aplicação:
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
-Domínio: http://localhost:8080 (para desenvolvimento)
+Exempos de alguns Endpoints da API
+Autenticação OAuth2
+Obter URL de autorização
 
-Configurações OAuth
+GET /api/auth/authorize
 
-Redirect URIs:
+Exemplo:
 
-Copy http://localhost:8080/api/auth/callback Scopes:
+curl -X GET "http://localhost:8080/api/auth/authorize"
 
-contacts (leitura/escrita)
+Resposta:
 
-content (leitura)
+"https://app.hubspot.com/oauth/authorize?client_id=12345&redirect_uri=http://localhost:8080/api/auth/callback&scope=contacts"
 
-Webhooks
+Processar call-back
 
-Evento assinado: contact.creation
 
-Endpoint: http://localhost:8080/api/webhooks/contact-creation
+GET /api/auth/callback?code={authorization_code}
 
-Secret key: [CHAVE_SECRETA_GERADA_NO_HUBSPOT]
+Exemplo:
 
-Decisões Técnicas Fluxo OAuth 2.0 Implementação:
-Biblioteca spring-security-oauth2-client
+curl -X GET "http://localhost:8080/api/auth/callback?code=abc123def456"
 
-Fluxo authorization_code padrão do HubSpot
+Resposta:
 
-Tokens armazenados em memória (para demonstração)
+Token de acesso obtido com sucesso: pat-na1-12345678-1234-1234-1234-123456789abc
+
+Gestão de Contatos
+
+Criar novo contato
+
+POST /api/contacts
+Content-Type: application/json
+
+
+curl -X POST "http://localhost:8080/api/contacts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "exemplo@empresa.com",
+    "firstName": "João",
+    "lastName": "Silva",
+    "phone": "+5511999999999"
+  }'
+
+{
+  "id": "12345",
+  "status": "CREATED",
+  "message": "Contato criado no HubSpot"
+}
+
+ Webhooks
+
+Receber notificação de novo contato
+
+POST /api/webhooks/contact-creation
+X-HubSpot-Signature: {assinatura_hmac}
+Content-Type: application/json
+
+curl -X POST "http://localhost:8080/api/webhooks/contact-creation" \
+  -H "X-HubSpot-Signature: abc123def456" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "contact.creation",
+    "objectId": 12345,
+    "properties": {
+      "email": "novo@empresa.com",
+      "firstname": "Maria"
+    }
+  }'
+
+
+Respostas:
+
+✅ Sucesso (200): "Evento processado com sucesso"
+
+🔒 Inválido (401): "Assinatura HMAC inválida"
+
+ Arquitetura e Segurança
+
+graph TD
+    A[Cliente] --> B[[API]]
+    B --> C[(HubSpot)]
+    B --> D[Rate Limiter]
+    D -->|100 reqs/10s| C
+
+Princípios implementados:
+Separação clara de controllers/services/repositórios
+Validação HMAC para webhooks
+Rate limiting (Bucket4j)
+Tratamento de erros detalhado
+
+Dependências Principais
+Biblioteca	Versão	Finalidade
+Spring Boot	3.2.4	Framework base
+Bucket4j	8.1.0	Limitação de requisições
+Spring Security	6.2.4	Autenticação OAuth2
+
+Testando a API
+Via cURL (exemplos acima)
+
+Postman:
+Importe a coleção: HubSpot-API.postman_collection.json
+Swagger UI:
+http://localhost:8080/swagger-ui.html
 
 Motivação:
 
 Seguir as boas práticas do HubSpot
-
 Simplicidade para o escopo do teste
 
-Melhorias futuras:
+Possíveis Melhorias:
 
-Persistência em banco de dados (ex: Redis)
-
-Rotação automática de tokens
-
-Webhooks Validação de assinatura:
-
-HMAC-SHA256 com a chave secreta da conta VianaDev
-
-Suporte às versões v1 e v3 do HubSpot
-
-Exemplo de implementação:
-
-java Copy private boolean isValidSignature(String payload, String signature) { String computedSignature = hmacSHA256(payload, webhookSecret); return constantTimeEquals(computedSignature, signature); } Rate Limiting Configuração (baseada nos limites da VianaDev):
-
-properties Copy
-
-application.properties
-rate-limiter.capacity=100 # Limite do HubSpot (100 requests/10s) rate-limiter.refill-amount=10 # Tokens recarregados a cada 10 segundos 3. Bibliotecas Utilizadas Biblioteca Versão Motivo Spring Boot 3.2.4 Framework principal Bucket4j 8.1.0 Rate limiting Lombok 1.18.30 Redução de boilerplate Spring Security 6.2.4 Segurança/OAuth 4. Instruções para Execução Pré-requisitos Credenciais da VianaDev no application-dev.properties:
-
-properties Copy hubspot.client.id=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-hubspot.client.secret=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-hubspot.webhook.secret=seu_secret_aqui
-Comandos: bash Copy mvn spring-boot:run -Dspring-boot.run.profiles=dev 5. Melhorias Futuras Para produção:
-
-Substituir localhost por URL pública (ex: ngrok durante testes)
-
-Adicionar IP whitelisting no HubSpot
-
-Monitoramento:
-
-Logs das chamadas à API HubSpot
-
-Métricas com Prometheus
-
-Segurança reforçada:
-
-Criptografia das credenciais (ex: Jasypt)
-
-Referências Documentação Oficial HubSpot
-Dashboard da Aplicação VianaDev
-
+Adicionar persistência de tokens
+Implementar dashboard de métricas
+Criar Dockerfile para deploy
